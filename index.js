@@ -19,7 +19,7 @@ const outputPhotoPrefixes = ['_small', '_small@2x', '_large', '_large@2x'];
 const outputFormats = ['avif', 'webp', 'jpeg'];
 
 /* This is only run for delete events */
-module.exports = async (event) => {
+exports.handler = async (event) => {
   console.log('Reading options from event:\n', util.inspect(event, { depth: 5 }));
   const record = event.Records[0];
   const srcBucket = record.s3.bucket.name;
@@ -33,7 +33,7 @@ module.exports = async (event) => {
   }
 
   const fileName = srcKey.match(/[^/]+$/g);
-  const fileNameWithoutExt = fileName.replace(typeMatch[0], '');
+  const fileNameWithoutExt = fileName[0].replace(typeMatch[0], '');
   const dirWithoutFile = srcKey.replace(fileName, '');
   console.table([fileName, fileNameWithoutExt, dirWithoutFile]);
 
@@ -42,18 +42,19 @@ module.exports = async (event) => {
   // prefixes that were used to create objects are stored here as well
 
   console.time(`deleting resized photos of ${fileNameWithoutExt}`);
-  s3.deleteObjects({
-    Bucket: process.env.RESIZED_PHOTOS_BUCKET,
-    Delete: {
-      Objects: outputPhotoPrefixes
-        .map((prefix) =>
-          outputFormats.map((format) => ({
-            Key: `${dirWithoutFile}${fileNameWithoutExt}${prefix}.${format}`,
-          }))
-        )
-        .flat(1),
-    },
-  })
+  await s3
+    .deleteObjects({
+      Bucket: process.env.RESIZED_PHOTOS_BUCKET,
+      Delete: {
+        Objects: outputPhotoPrefixes
+          .map((prefix) =>
+            outputFormats.map((format) => ({
+              Key: `${dirWithoutFile}${fileNameWithoutExt}${prefix}.${format}`,
+            }))
+          )
+          .flat(1),
+      },
+    })
     .promise()
     .then(() => console.log('successfully deleted photos'))
     .catch((err) => {
@@ -61,4 +62,22 @@ module.exports = async (event) => {
       return Promise.reject('could not delete photos');
     })
     .finally(() => console.timeEnd(`deleting resized photos of ${fileNameWithoutExt}`));
+
+  const query = {
+    text: 'DELETE FROM photos WHERE name=$1 and dir_path=$2',
+    values: [fileNameWithoutExt, dirWithoutFile],
+  };
+  console.time('delete from db');
+
+  await pool
+    .query(query)
+    .then((res) => console.log(res))
+    .catch((err) => {
+      console.error(err);
+      return Promise.reject('failed to delete from db');
+    })
+    .finally(() => console.timeEnd('delete from db'));
+  return Promise.resolve(
+    `delete image ${fileNameWithoutExt} from resized bucket and from photos meta db`
+  );
 };

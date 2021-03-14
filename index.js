@@ -1,13 +1,4 @@
 const AWS = require('aws-sdk');
-const { Pool } = require('pg');
-
-module.exports = async (event) => {
-  // After a deleted image
-  // Get the db info about that image
-  // Delete images from the resize bucket given the above information
-  // Delete the row from the DB
-};
-const AWS = require('aws-sdk');
 const util = require('util');
 const s3 = new AWS.S3();
 const { Pool } = require('pg');
@@ -28,7 +19,8 @@ const outputPhotoPrefixes = ['_small', '_small@2x', '_large', '_large@2x'];
 const outputFormats = ['avif', 'webp', 'jpeg'];
 
 /* This is only run for delete events */
-exports.handler = async (event) => {
+module.exports = async (event) => {
+  console.log('Reading options from event:\n', util.inspect(event, { depth: 5 }));
   const record = event.Records[0];
   const srcBucket = record.s3.bucket.name;
   const srcKey = record.s3.object.key;

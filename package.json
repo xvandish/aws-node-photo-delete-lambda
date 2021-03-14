@@ -1,0 +1,23 @@
+{
+  "name": "aws-node-photo-delete-lambda",
+  "version": "1.0.0",
+  "description": "After an S3 delete in OG bucket, deletes resized images and DB image info",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xvandish/aws-node-photo-delete-lambda.git"
+  },
+  "author": "Rodrigo Silva Mendoza",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/xvandish/aws-node-photo-delete-lambda/issues"
+  },
+  "homepage": "https://github.com/xvandish/aws-node-photo-delete-lambda#readme",
+  "devDependencies": {
+    "aws-sdk": "^2.863.0",
+    "pg": "^8.5.1"
+  }
+}

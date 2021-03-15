@@ -56,7 +56,7 @@ exports.handler = async (event) => {
       },
     })
     .promise()
-    .then(() => console.log('successfully deleted photos'))
+    .then((data) => console.log('successfully deleted photos ', data))
     .catch((err) => {
       console.error(err);
       return Promise.reject('could not delete photos');

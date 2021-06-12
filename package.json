@@ -18,6 +18,8 @@
   "homepage": "https://github.com/xvandish/aws-node-photo-delete-lambda#readme",
   "devDependencies": {
     "aws-sdk": "^2.863.0",
-    "pg": "^8.5.1"
+    "node-fetch": "^2.6.1",
+    "pg": "^8.5.1",
+    "pg-connection-string": "^2.5.0"
   }
 }

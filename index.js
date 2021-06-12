@@ -2,28 +2,52 @@ const AWS = require('aws-sdk');
 const util = require('util');
 const s3 = new AWS.S3();
 const { Pool } = require('pg');
+const fetch = require('node-fetch');
+const parsePgConnectionString = require('pg-connection-string');
 
-const pool = new Pool({
-  max: 1,
-  min: 0,
-  idleTimeoutMillis: 120000,
-  connectionTimeoutMillis: 10000,
-  host: process.env.PHOTOS_META_DB_HOST,
-  user: process.env.PHOTOS_META_DB_USER,
-  password: process.env.PHOTOS_META_DB_PASSWORD,
-  port: process.env.PHOTOS_META_DB_PORT,
-  database: process.env.PHOTOS_META_DB_NAME,
-});
+const herokuApiKey = process.env.HEROKU_API_KEY;
+const herokuPostgresId = process.env.HEROKU_POSTGRES_ID;
+let dbPool;
+
+async function initializePgPool() {
+  const herokuConfig = await fetch(`https://api.heroku.com/addons/${herokuPostgresId}/config`, {
+    headers: {
+      'Authorization': `Bearer ${herokuApiKey}`,
+      'Accept': 'application/vnd.heroku+json; version=3'
+    }
+  })
+    .then(res => res.json())
+    .then(data => data)
+    .catch((err) => err)
+
+  if (herokuConfig instanceof Error) {
+    return
+  }
+
+  const pgConfig = {
+    ...parsePgConnectionString(herokuConfig[0].value), // the db string returned by heroku
+    max: 1,
+    ssl: {
+      rejectUnauthorized: false
+    },
+    idleTimeoutMillis: 120000,
+    connectionTimeoutMillis: 10000,
+  }
+  dbPool = new Pool(pgConfig)
+}
 
 const outputPhotoPrefixes = ['_small', '_small@2x', '_large', '_large@2x'];
 const outputFormats = ['avif', 'webp', 'jpeg'];
 
 /* This is only run for delete events */
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
   console.log('Reading options from event:\n', util.inspect(event, { depth: 5 }));
   const record = event.Records[0];
   const srcBucket = record.s3.bucket.name;
   const srcKey = record.s3.object.key;
+
+  // Dont wait for the db dbPool connection to close
+  context.callbackWaitsForEmptyEventLoop = false;
 
   // Make sure the object being deleted is a file
   const typeMatch = srcKey.match(/\.([^.]*)$/);
@@ -64,12 +88,25 @@ exports.handler = async (event) => {
     .finally(() => console.timeEnd(`deleting resized photos of ${fileNameWithoutExt}`));
 
   const query = {
-    text: 'DELETE FROM photos WHERE name=$1 and dir_path=$2',
+    text: 'DELETE FROM photos_meta WHERE name=$1 and dir_path=$2',
     values: [fileNameWithoutExt, dirWithoutFile],
   };
-  console.time('delete from db');
+  
 
-  await pool
+  if (!dbPool) {
+    console.log('initializing dbPool')
+    console.time('get heroku db url and initialize dbPool')
+    await initializePgPool();
+    console.timeEnd('get heroku db url and initialize dbPool')
+    if (!dbPool) {
+      return Promise.reject('could not initalize db dbPool')
+    }
+  } else {
+    console.log('dbPool already initialized')
+  }
+
+  console.time('delete from db');
+  await dbPool
     .query(query)
     .then((res) => console.log(res))
     .catch((err) => {
